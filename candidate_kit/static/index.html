@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HROne Attendance</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh}
+header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:16px 32px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+header h1{font-size:1.4rem;font-weight:600;letter-spacing:.5px}
+header span{font-size:.8rem;opacity:.6;margin-left:auto}
+#status-dot{width:10px;height:10px;border-radius:50%;background:#ef4444;flex-shrink:0;transition:background .3s}
+#status-dot.ok{background:#22c55e}
+nav{background:#16213e;display:flex;gap:2px;padding:0 32px;overflow-x:auto}
+nav button{background:none;border:none;color:#94a3b8;padding:12px 18px;cursor:pointer;font-size:.85rem;border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s}
+nav button:hover{color:#e2e8f0}
+nav button.active{color:#60a5fa;border-bottom-color:#60a5fa}
+main{max-width:1100px;margin:28px auto;padding:0 20px}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:24px;margin-bottom:20px}
+.card h2{font-size:1rem;font-weight:600;margin-bottom:16px;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:10px}
+.form-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;align-items:flex-end}
+.form-group{display:flex;flex-direction:column;gap:4px;min-width:160px}
+.form-group label{font-size:.75rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
+.form-group input,.form-group select{border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:.875rem;outline:none;transition:border .2s;background:#fafafa}
+.form-group input:focus,.form-group select:focus{border-color:#60a5fa;background:#fff}
+.btn{padding:9px 20px;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;white-space:nowrap}
+.btn-primary{background:#3b82f6;color:#fff}
+.btn-primary:hover{background:#2563eb}
+.btn-success{background:#22c55e;color:#fff}
+.btn-success:hover{background:#16a34a}
+.btn-warning{background:#f59e0b;color:#fff}
+.btn-warning:hover{background:#d97706}
+.btn-danger{background:#ef4444;color:#fff}
+.btn-danger:hover{background:#dc2626}
+.btn-sm{padding:5px 12px;font-size:.78rem}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{background:#f8fafc;color:#475569;font-weight:600;padding:10px 12px;text-align:left;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:600}
+.badge-present{background:#dcfce7;color:#166534}
+.badge-wfh{background:#dbeafe;color:#1e40af}
+.badge-on_duty{background:#fef9c3;color:#854d0e}
+.badge-absent{background:#fee2e2;color:#991b1b}
+.badge-leave{background:#f3e8ff;color:#6b21a8}
+.pagination{display:flex;align-items:center;gap:8px;margin-top:14px;justify-content:flex-end}
+.pagination button{padding:5px 12px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;font-size:.8rem}
+.pagination button:disabled{opacity:.4;cursor:default}
+.pagination span{font-size:.8rem;color:#64748b}
+.alert{padding:10px 14px;border-radius:8px;font-size:.85rem;margin-bottom:12px}
+.alert-error{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+.alert-success{background:#dcfce7;color:#166534;border:1px solid #86efac}
+.section{display:none}
+.section.active{display:block}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.stat-box{background:#f8fafc;border-radius:10px;padding:14px;text-align:center;border:1px solid #e2e8f0}
+.stat-box .val{font-size:1.6rem;font-weight:700;color:#1e293b}
+.stat-box .lbl{font-size:.72rem;color:#64748b;margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
+.rank-badge{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;font-weight:700;font-size:.8rem}
+.rank-1{background:#fef08a;color:#713f12}
+.rank-2{background:#e2e8f0;color:#334155}
+.rank-3{background:#fed7aa;color:#7c2d12}
+.rank-n{background:#f1f5f9;color:#475569}
+.trend-bar{height:6px;border-radius:3px;background:#3b82f6;display:inline-block;min-width:2px}
+.empty{text-align:center;padding:32px;color:#94a3b8;font-size:.9rem}
+.loading{text-align:center;padding:24px;color:#94a3b8}
+#toast{position:fixed;bottom:24px;right:24px;background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:.85rem;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;max-width:320px}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <div id="status-dot"></div>
+  <h1>HROne Attendance</h1>
+  <span id="db-status">checking...</span>
+</header>
+<nav>
+  <button class="active" onclick="showSection('employees')">Employees</button>
+  <button onclick="showSection('punch')">Punch In / Out</button>
+  <button onclick="showSection('attendance')">Attendance Logs</button>
+  <button onclick="showSection('monthly')">Monthly Summary</button>
+  <button onclick="showSection('dept-summary')">Dept Summary</button>
+  <button onclick="showSection('leaderboard')">Late Leaderboard</button>
+  <button onclick="showSection('trend')">Dept Trend</button>
+</nav>
+<main>
+  <div id="toast"></div>
+
+  <!-- EMPLOYEES -->
+  <div id="sec-employees" class="section active">
+    <div class="card">
+      <h2>Add Employee</h2>
+      <div id="emp-alert"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Emp Code</label><input id="e-code" placeholder="EMP0001"></div>
+        <div class="form-group"><label>Name</label><input id="e-name" placeholder="Full name"></div>
+        <div class="form-group"><label>Email</label><input id="e-email" placeholder="user@example.com"></div>
+        <div class="form-group"><label>Department</label><input id="e-dept" placeholder="Engineering"></div>
+        <div class="form-group"><label>Joined On</label><input id="e-joined" type="date"></div>
+        <div class="form-group"><label>Shift Start</label><input id="e-sstart" value="09:30" placeholder="09:30"></div>
+        <div class="form-group"><label>Shift End</label><input id="e-send" value="18:30" placeholder="18:30"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-success" onclick="createEmployee()">Add</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Employee List</h2>
+      <div class="form-row">
+        <div class="form-group"><label>Filter Dept</label><input id="emp-filter-dept" placeholder="All departments"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="loadEmployees(1)">Search</button></div>
+      </div>
+      <div id="emp-table-wrap"><div class="loading">Loading...</div></div>
+      <div class="pagination" id="emp-pagination"></div>
+    </div>
+  </div>
+
+  <!-- PUNCH -->
+  <div id="sec-punch" class="section">
+    <div class="card">
+      <h2>Punch In</h2>
+      <div id="pin-alert"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Emp Code</label><input id="pin-code" placeholder="EMP0001"></div>
+        <div class="form-group"><label>Status</label>
+          <select id="pin-status">
+            <option value="PRESENT">PRESENT</option>
+            <option value="WFH">WFH</option>
+            <option value="ON_DUTY">ON_DUTY</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Time (leave blank = now)</label><input id="pin-time" type="datetime-local"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-success" onclick="doPunchIn()">Punch In</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Punch Out</h2>
+      <div id="pout-alert"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Emp Code</label><input id="pout-code" placeholder="EMP0001"></div>
+        <div class="form-group"><label>Time (leave blank = now)</label><input id="pout-time" type="datetime-local"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-warning" onclick="doPunchOut()">Punch Out</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ATTENDANCE LOGS -->
+  <div id="sec-attendance" class="section">
+    <div class="card">
+      <h2>Attendance Logs</h2>
+      <div class="form-row">
+        <div class="form-group"><label>Emp Code</label><input id="att-emp" placeholder="All"></div>
+        <div class="form-group"><label>Date From</label><input id="att-from" type="date"></div>
+        <div class="form-group"><label>Date To</label><input id="att-to" type="date"></div>
+        <div class="form-group"><label>Status</label>
+          <select id="att-status">
+            <option value="">All</option>
+            <option>PRESENT</option><option>WFH</option><option>ON_DUTY</option>
+            <option>ABSENT</option><option>LEAVE</option>
+          </select>
+        </div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="loadAttendance(1)">Search</button></div>
+      </div>
+      <div id="att-table-wrap"><div class="loading">Loading...</div></div>
+      <div class="pagination" id="att-pagination"></div>
+    </div>
+  </div>
+
+  <!-- MONTHLY SUMMARY -->
+  <div id="sec-monthly" class="section">
+    <div class="card">
+      <h2>Monthly Summary</h2>
+      <div class="form-row">
+        <div class="form-group"><label>Emp Code</label><input id="mon-emp" placeholder="EMP0001"></div>
+        <div class="form-group"><label>Month</label><input id="mon-month" type="month"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="loadMonthly()">Load</button></div>
+      </div>
+      <div id="mon-result"></div>
+    </div>
+  </div>
+
+  <!-- DEPT SUMMARY -->
+  <div id="sec-dept-summary" class="section">
+    <div class="card">
+      <h2>Department Summary</h2>
+      <div class="form-row">
+        <div class="form-group"><label>Month</label><input id="ds-month" type="month"></div>
+        <div class="form-group"><label>Department (optional)</label><input id="ds-dept" placeholder="All"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="loadDeptSummary()">Load</button></div>
+      </div>
+      <div id="ds-result"></div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div id="sec-leaderboard" class="section">
+    <div class="card">
+      <h2>Late Leaderboard</h2>
+      <div class="form-row">
+        <div class="form-group"><label>Month</label><input id="lb-month" type="month"></div>
+        <div class="form-group"><label>Limit</label><input id="lb-limit" type="number" value="10" min="1" max="50" style="width:80px"></div>
+        <div class="form-group"><label>Department (optional)</label><input id="lb-dept" placeholder="All"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="loadLeaderboard()">Load</button></div>
+      </div>
+      <div id="lb-result"></div>
+    </div>
+  </div>
+
+  <!-- TREND -->
+  <div id="sec-trend" class="section">
+    <div class="card">
+      <h2>Department Trend</h2>
+      <div class="form-row">
+        <div class="form-group"><label>Department</label><input id="tr-dept" placeholder="Engineering"></div>
+        <div class="form-group"><label>From</label><input id="tr-from" type="date"></div>
+        <div class="form-group"><label>To</label><input id="tr-to" type="date"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="loadTrend()">Load</button></div>
+      </div>
+      <div id="tr-result"></div>
+    </div>
+  </div>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>

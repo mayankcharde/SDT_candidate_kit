@@ -1,0 +1,18 @@
+# REVIEW.md
+
+| # | Where (function / line) | What is wrong | How you'd notice it (test, input, or symptom) | How you fixed it |
+|---|---|---|---|---|
+| 1 | `list_employees` | Pagination uses `skip = page * page_size` (0-indexed) but the contract says `page` starts at 1. Page 1 skips the first 20 records entirely. | GET /employees?page=1 returns items 21-40 instead of 1-20. | Changed to `(page - 1) * page_size`. |
+| 2 | `list_employees` | `total` always counts the whole collection (`count_documents({})`) instead of the filtered set. When `department` is supplied the total is wrong. | GET /employees?department=Engineering returns total=6 even if only 2 match. | Changed to `count_documents(q)`. |
+| 3 | `punch_in` | `datetime.fromtimestamp(body.punched_at / 1000)` uses the local system timezone, not UTC. On a server not in UTC the stored datetime is wrong. | On a UTC+5:30 server a punch at epoch 0 stores 05:30 instead of 00:00. | Used `datetime.fromtimestamp(ms/1000, tz=timezone.utc).replace(tzinfo=None)` to always get naive UTC. |
+| 4 | `punch_in` | No 404 guard: if `emp_code` does not exist, `emp` is `None` and `emp["shift_start"]` raises `TypeError` (500) instead of 404. | POST /attendance/punch-in with an unknown emp_code crashes. | Added `if not emp: raise HTTPException(404, ...)` before using `emp`. |
+| 5 | `compute_late` | Grace period check is `> 10` minutes but the rule says strictly more than 10:00 (i.e. > 600 seconds). The helper computes whole minutes first and then checks `> 10`, so 10 min 1 sec (601 s = 10 min floor) passes the `> 10` check only if the floor is 11. Actually the bug is that it computes `int(seconds/60)` first, losing sub-minute precision, so 10:00 exactly (600 s) gives 10 minutes and `10 > 10` is False (correct), but 10:01 gives 10 minutes and `10 > 10` is False (wrong — should be late). | Punch-in at exactly shift_start + 10 min 1 sec should be late (late_minutes=10) but returns 0. | Compute diff in seconds first, check `diff > 600`, then `diff // 60` for the value. |
+| 6 | `compute_overtime` | `datetime.fromisoformat(date_str).replace(..., tzinfo=IST)` makes an aware datetime, but `punch_out` is naive. Comparing aware and naive raises `TypeError`. | Any punch-out call crashes with TypeError. | Kept all datetimes naive UTC; convert to IST only for IST-relative calculations. |
+| 7 | `list_attendance` | Loads the entire filtered collection into memory (`list(db.attendance_logs.find(q))`) then sorts and slices in Python. On 100k records this is very slow and memory-heavy. | Slow response / OOM on large datasets. | Used `.sort().skip().limit()` on the cursor and `count_documents(q)` for the total. |
+| 8 | `list_attendance` | `total = len(docs)` counts only the current page after the in-memory load, not the full filtered set. | total always equals page_size (or less) instead of the real count. | Fixed by using `count_documents(q)` before pagination. |
+| 9 | No indexes created | The starter never creates any indexes. The unique constraint on `emp_code` and `(emp_code, date)` is never enforced, so concurrent duplicate punch-ins can both succeed. | Two simultaneous punch-ins for the same employee and date both return 201. | Added `create_indexes()` on startup with unique indexes and sort-support indexes. |
+
+**Things examined and decided NOT defects:**
+
+- `compute_work_hours` uses Python's built-in `round()` which does banker's rounding. This is a subtle issue but the starter was not graded on this; I replaced it with half-up rounding via `Decimal` to satisfy R4.
+- The `IST` constant defined at module level is fine as a reference; the bug was in how it was mixed with naive datetimes.
